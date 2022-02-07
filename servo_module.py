@@ -13,9 +13,11 @@ class servo:
 
     def set_angle(self, angle):
         if self.previous_angle == angle:
-            print('current angle same as previous')
+            print("desired angle same as previous")
         elif angle > 270:
-            print("angle greater than 270")
+            print("desired angle greater than 270")
+        elif angle < 0:
+            print("desired angle less than 0")
         else:
             self.servoNum.ChangeDutyCycle(2+(angle/27))
             print(2+(angle/27))
