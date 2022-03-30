@@ -3,84 +3,85 @@ import servo_module as ser
 import RPi.GPIO as GPIO
 import time
 
-step = 3
-direc = 5
+def return_to_init_pos(motor):
+    if motor.relative_pos < 0:
+        time.sleep(1)
+        temp = abs(motor.relative_pos)
+        print(temp)
+        motor.rotate_stepper(temp, 'cw', delay, verbose_sweep)
+        print("back to initial from ccw")
+        quit()
+    elif motor.relative_pos > 0:
+        time.sleep(1)
+        temp = abs(motor.relative_pos)
+        print(temp)
+        motor.rotate_stepper(temp, 'ccw', delay, verbose_sweep)
+        print("back to initial from cc")
+        quit()
+
+step_pin = 3
+direc_pin = 5
 servo_pin = 11
+button_pin = 36
+delay = .002
+verbose_sweep = False
+verbose_track = True
+
 #intialize stepper and servo  motor
-motor1 = s.stepper(step, direc)                  
+motor1 = s.stepper(step_pin, direc_pin)                  
 #servo1 = ser.servo(servo_pin, 50, "servo1")
+
 GPIO.setmode(GPIO.BOARD)
-GPIO.setup(36, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.add_event_detect(36, GPIO.FALLING)
+GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.add_event_detect(button_pin, GPIO.FALLING)
+GPIO.setwarnings(False)
 
 start = True
 cw = True
 
 
 while True:
-    if GPIO.event_detected(36):
-        if motor1.relative_pos < 0:
-            time.sleep(1)
-            temp = abs(motor1.relative_pos)
-            print(temp)
-            motor1.rotate_stepper(temp, 'cw', .01, False)
-            print("back to initial from ccw")
-            quit()
-        elif motor1.relative_pos > 0:
-            time.sleep(1)
-            temp = abs(motor1.relative_pos)
-            print(temp)
-            motor1.rotate_stepper(temp, 'ccw', .01, False)
-            print("back to initial from cc")
-            quit()
+    if GPIO.event_detected(button_pin):
+        return_to_init_pos(motor1)
     
     if start:
-         motor1.rotate_stepper(90, 'ccw', .01, False)
+         motor1.rotate_stepper(180, 'ccw', delay, verbose_sweep)
          #servo1.set_angle(130)
          start = False
          
     
     if cw:
-        if motor1.relative_pos > 86.4:
+        if motor1.relative_pos > 176.4:
             print(motor1.relative_pos)
-            degree = 90 - motor1.relative_pos
-            if degree < 0.9:
-                print("don't rotate")
-            else:
-                print(degree)
-                motor1.rotate_stepper(degree, 'cw', .01, False)
+            degree = 180 - motor1.relative_pos
+            print('greater than 176.4', degree)
+            motor1.rotate_stepper(degree, 'cw', delay, verbose_sweep)
             
-        print(motor1.relative_pos)
-        temp = round(motor1.relative_pos)
-        print(temp)
+        temp = motor1.relative_pos
         
-        if temp == 90:
+        if temp > 179:
             cw = False
         else:
-            motor1.rotate_stepper(3.6, 'cw', .01, False)
+            motor1.rotate_stepper(3.6, 'cw', delay, verbose_sweep)
         
     else:
-        if motor1.relative_pos < -86.4:
+        if motor1.relative_pos < -176.4:
             print(motor1.relative_pos)
-            degree = 90 - abs(motor1.relative_pos)
-            if degree < 0.9:
-                print("don't rotate")
-            else:
-                print(degree)
-                motor1.rotate_stepper(degree, 'ccw', .01, False)
+            degree = 180 - abs(motor1.relative_pos)
+            print('less than -176.4' ,degree)
+            motor1.rotate_stepper(degree, 'ccw', delay, verbose_sweep)
             
-        print(motor1.relative_pos)
-        temp = round(motor1.relative_pos)
-        print(temp)
+        temp = motor1.relative_pos
         
-        if temp == -90:
+        
+        if temp < -179:
             cw = True
         else:
-            motor1.rotate_stepper(3.6, 'ccw', .01, False)
+            motor1.rotate_stepper(3.6, 'ccw', delay, verbose_sweep)
     
     
     #CV code to detect pest goes here?
-    pest = int(input("pest detected? "))
+    pest = 0 #int(input("pest detected? "))
     
     if pest == 1:
         cord = 5
@@ -90,7 +91,7 @@ while True:
             print(motor1.relative_pos)
             cord = float(input("degree?"))
             direction = input("direction?")
-            motor1.rotate_stepper(cord, direction, .01, False)
+            motor1.rotate_stepper(cord, direction, delay, verbose_track)
             #get distance and calculate angle for servo
             needed_angle = 0
             
