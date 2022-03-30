@@ -3,6 +3,12 @@ import RPi.GPIO as GPIO
 
 RANGE_ERR = -1
 DIR_ERR = -2
+MIN_DEG_ERR = -3
+
+DEG_PER_STEP = 0.9
+MAX_RANGE = 180
+MIN_RANGE = -180
+TOTAL_RANGE = 2 * MAX_RANGE
 
 class stepper:
     def __init__(self, step, direc):
@@ -15,26 +21,29 @@ class stepper:
         GPIO.setup(direc, GPIO.OUT)
     
     def rotate_stepper(self, degrees, direction, delay = .001, verbose = False):
-        steps = int(round(degrees / 0.9))
+        if degrees < DEG_PER_STEP:
+            print("minimum degrees is 0.9")
+            return MIN_DEG_ERR
+        steps = int(round(degrees / DEG_PER_STEP))
         temp = self.relative_pos
         i = 0
         
         if direction == 'cw':
             temp += degrees
-            if temp > 90:
-                print('angle greater than the max range of 180 (pos > 90)')
-                return RANGE_ERR
-            else:
-                self.relative_pos = temp
-                GPIO.output(self.dir_pin, GPIO.LOW)
-        elif direction == 'ccw':
-            temp -= degrees
-            if temp < -90:
-                print('angle greater than the max range of 180 (pos < -90)')
+            if temp > MAX_RANGE:
+                print('angle greater than the max range of {0} (pos > {1})'.format(TOTAL_RANGE, MAX_RANGE))
                 return RANGE_ERR
             else:
                 self.relative_pos = temp
                 GPIO.output(self.dir_pin, GPIO.HIGH)
+        elif direction == 'ccw':
+            temp -= degrees
+            if temp < MIN_RANGE:
+                print('angle greater than the max range of {0} (pos < {1})'.format(TOTAL_RANGE, MIN_RANGE))
+                return RANGE_ERR
+            else:
+                self.relative_pos = temp
+                GPIO.output(self.dir_pin, GPIO.LOW)
         else:
             print('invalid direction input')
             return DIR_ERR
@@ -46,11 +55,13 @@ class stepper:
             time.sleep(delay)
             
         if verbose == True:
-            print('relative position is:')
-            print(self.relative_pos)
+            print('relative position is: {0}'.format(self.relative_pos))
             if direction == 'cw':
                 print('num of steps taken clockwise:')
                 print(steps)
             else:
                 print('num of steps take counterclockwise:')
                 print(steps)
+                
+        return self.relative_pos   # new position after rotation
+        
