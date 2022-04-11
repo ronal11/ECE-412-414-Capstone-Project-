@@ -3,8 +3,8 @@ import numpy as np
 from typing import Tuple, Union, Any
 
 # Yolo Setup Parameters
-MODEL_CFG    = '../yolo/yolov4-tiny.cfg'
-MODEL_WEIGHT = '../yolo/yolov4-tiny.weights'
+MODEL_CFG    = '../yolo/yolo-custom.cfg'
+MODEL_WEIGHT = '../yolo/yolo-custom.weights'
 MODEL_WIDTH  = 416
 MODEL_HEIGHT = 416
 
