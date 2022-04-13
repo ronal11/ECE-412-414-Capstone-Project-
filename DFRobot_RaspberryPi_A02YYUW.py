@@ -95,3 +95,4 @@ class DFRobot_A02_Distance:
         self.distance = self.distance_min
     else:
       self.last_operate_status = self.STA_ERR_DATA
+    #self._ser.reset_input_buffer(
