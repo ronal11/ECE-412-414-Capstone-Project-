@@ -2,6 +2,10 @@ import cv2
 import numpy as np
 from typing import Tuple, Union, Any
 
+# Dataset file path
+COCO_PATH           = '../yolo/coco.names'
+CUSTOM_ClASSES_PATH = '../yolo/obj.names'
+
 # Yolo Setup Parameters
 MODEL_CFG    = '../yolo/yolo-custom.cfg'
 MODEL_WEIGHT = '../yolo/yolo-custom.weights'
@@ -47,12 +51,59 @@ def cfg_yolo() -> cv2.dnn_Net:
     net.setPreferableTarget(cv2.dnn.DNN_TARGET_CPU)
     return net
 
+def initialize() -> tuple[list, cv2.dnn_Net]:
+    """Initializes the YoloV4-tiny-custom model with the Darknet DNN
+
+    Returns:
+        class_names: A list of supported objects (classes) that the model can detect
+        net: An OpenCV deep neural network (DNN) object that represents the yoloV4 neural network
+    """
+
+    class_names = get_class_names(CUSTOM_ClASSES_PATH) # Grab the class names from the desired model
+    net = cfg_yolo() # Configure OpenCV to read the YoloV4 model files (cfg and weight)
+    return class_names, net
+
+def toggle_camera(cap: cv2.VideoCapture, vid_src: Union[str, int]) -> cv2.VideoCapture | None:
+    """Takes in a VideoCapture object and toggles it based on on/off state
+
+    Args:
+        cap: An OpenCV VideoCapture object that represents a camera
+        vid_src: The integral indicator for a system's webcame to use for video input
+
+    Returns:
+        cap: An OpenCV VideoCapture object that represents a camera
+    """
+
+    if cap:
+        cap.release()
+        return None
+    else:
+        cap = cv2.VideoCapture(vid_src, cv2.CAP_DSHOW)
+        return cap
+
+def get_frame(cap: cv2.VideoCapture) -> Tuple[np.ndarray, int, int]:
+    """Grabs a single frame of video from the webcame (dictated by "cap")
+
+    Args:
+        cap: An OpenCV VideoCapture object that represents a camera
+
+    Returns:
+        frame: Current frame of the video input to be processed
+        f_width: Width of the frame
+        f_height: Height of the frame
+    """
+
+    _, frame = cap.read()  # Decode the next frame of video
+    f_height, f_width, _ = frame.shape  # Extract the height and width of the image (should be const most frames)
+    return frame, f_width, f_height
+
+
 def get_layer_outputs(frame: np.ndarray, net: cv2.dnn_Net) -> np.ndarray:
     """Computes the detected objects for the current video frame
 
     Args:
         frame: Current frame of the video input to be processed
-        net: OpenCV configured neural network used for detection
+        net: An OpenCV deep neural network (DNN) object that represents the yoloV4 neural network
 
     Returns:
         layer_outputs: A numpy ndarray of detected objects
@@ -65,7 +116,7 @@ def get_layer_outputs(frame: np.ndarray, net: cv2.dnn_Net) -> np.ndarray:
     layer_outputs = net.forward(output_names)
     return layer_outputs
 
-def cv_post_processing(layer_outputs: np.ndarray, f_width: int, f_height: int) -> Tuple[list,list,list,list]:
+def post_processing(layer_outputs: np.ndarray, f_width: int, f_height: int) -> Tuple[list,list,list,list]:
     """Process the outputs from the yolov4 DNN
 
     Args:
@@ -103,7 +154,29 @@ def cv_post_processing(layer_outputs: np.ndarray, f_width: int, f_height: int) -
                 confidences.append(float(confidence))
     return boxes, b_center_coords, confidences, class_ids
 
-def gen_bbox(frame: np.ndarray, boxes: list, confidences: list, class_ids: list, class_names: list) -> None:
+def process_frame_for_coords(cap, net, class_names) -> Tuple[int, int] | Tuple[None, None]:
+    """A processing function that only returns the center coordinates for the first detected object
+
+    Args:
+        cap: An OpenCV VideoCapture object that represents a camera
+        net: An OpenCV deep neural network (DNN) object that represents the yoloV4 neural network
+        class_names: A list of supported objects (classes) that the model can detect
+
+    Returns:
+        x_center_coordinate: x-coordindate for the center of the bounding box
+        y_center_coordinate: y-coordindate for the center of the bounding box
+    """
+
+    if cap:
+        frame, f_width, f_height = get_frame(cap)
+        layer_outputs            = get_layer_outputs(frame, net)
+        boxes, b_center_coords, confidences, class_ids = post_processing(layer_outputs, f_width, f_height)
+
+        if b_center_coords:
+            return get_center_coords(b_center_coords, 0)
+    return None, None
+
+def draw_bbox(frame: np.ndarray, boxes: list, confidences: list, class_ids: list, class_names: list) -> None:
     """Draw bounding boxes for all detected objects
 
     Args:
@@ -142,35 +215,3 @@ def get_center_coords(b_center_coords: list, index: int) -> tuple[Any, Any] | tu
         return b_center_coords[index][0], b_center_coords[index][1]
     else:
         return None, None
-
-
-def cv_loop(vid_src: Union[str, int], net: cv2.dnn_Net, class_names: list) -> None:
-    """Main computer vision loop for continously reading and processing a webcam/video feed
-
-    Args:
-        vid_src:
-        net: OpenCV configured neural network used for detection
-        class_names: A list of detectable class names
-
-    Returns:
-        None
-    """
-
-    # Configure the image capturing device (static images, videos, cameras, etc.)
-    cap = cv2.VideoCapture(vid_src)
-
-    while True:
-        _, frame = cap.read()               # Decode the next frame of video
-        f_height, f_width, _ = frame.shape  # Extract the height and width of the image (should be const most frames)
-
-        layer_outputs = get_layer_outputs(frame, net)
-        boxes, b_center_coords, confidences, class_ids = cv_post_processing(layer_outputs, f_width, f_height)
-        gen_bbox(frame, boxes, confidences, class_ids, class_names)
-
-        cv2.imshow('Video', frame)
-        key = cv2.waitKey(1)
-        if key == 27:
-            break
-
-    cap.release()
-    cv2.destroyAllWindows()
