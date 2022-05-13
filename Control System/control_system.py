@@ -1,83 +1,26 @@
 import stepper_module as s
 import servo_module as ser
 import RPi.GPIO as GPIO
-#import cv
+from control_functions import return_to_init_pos, motor_sweep, initial_start_position, servo_angle_needed, track_pest
+import cv
 import time
-import math
-from demo_get_distance import get_distance
+import cv2
+import cv_test
 
-def return_to_init_pos(motor):
-    if motor.relative_pos < 0:
-        time.sleep(1)
-        temp = abs(motor.relative_pos)
-        print(temp)
-        motor.rotate_stepper(temp, 'cw', delay, verbose_sweep)
-        print("back to initial from ccw")
-        quit()
-    elif motor.relative_pos > 0:
-        time.sleep(1)
-        temp = abs(motor.relative_pos)
-        print(temp)
-        motor.rotate_stepper(temp, 'ccw', delay, verbose_sweep)
-        print("back to initial from cc")
-        quit()
-        
-def motor_sweep(motor, delay, verbose, cw):
-    
-    if cw:
-        if motor.relative_pos > 176.4:
-            print(motor.relative_pos)
-            degree = 180 - motor.relative_pos
-            print('greater than 176.4, degrees needed: ', degree)
-            motor.rotate_stepper(degree, 'cw', delay, verbose)
-            
-        curr = motor.relative_pos
-        
-        if curr > 179:
-            cw = False
-        else:
-            motor.rotate_stepper(3.6, 'cw', delay, verbose)
-        
-    else:
-        if motor.relative_pos < -176.4:
-            print(motor.relative_pos)
-            degree = 180 - abs(motor.relative_pos)
-            print('less than -176.4' ,degree)
-            motor.rotate_stepper(degree, 'ccw', delay, verbose)
-            
-        curr = motor.relative_pos
-        
-        
-        if curr < -179:
-            cw = True
-        else:
-            motor.rotate_stepper(3.6, 'ccw', delay, verbose_sweep)
-    return cw
-
-def initial_start_position(motor, delay, verbose, start):
-    if start:
-        motor1.rotate_stepper(180, 'ccw', delay, verbose)
-        #servo1.set_angle(130)
-        start = False
-    return start
+COCO_PATH           = 'coco.names'
+CUSTOM_ClASSES_PATH = 'obj.names'
+SYS_WEBCAM = 0
+x_cord = 0
+frame_thresh = 10
 
 step_pin = 3
 direc_pin = 5
 servo_pin = 7
 button_pin = 37
-delay = .002
-verbose_sweep = False
+solenoid_pin = 33
+delay = .009
+verbose_sweep = True
 verbose_track = True
-
-frame_width = 1920
-a = frame_width / 2
-camera_FOV = 60
-alpha = camera_FOV / 2
-center_x_frame = 0
-
-v0 = 2
-v0_2 = pow(v0, 2)
-g = 9.8
 
 
 #intialize stepper and servo  motor
@@ -85,79 +28,101 @@ motor1 = s.stepper(step_pin, direc_pin)
 servo1 = ser.servo(servo_pin, 50, "servo1")
 
 GPIO.setmode(GPIO.BOARD)
+GPIO.setup(solenoid_pin, GPIO.OUT)
 GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(button_pin, GPIO.FALLING)
 
-
-start = True
+started = True
 cw = True
 solenoid_open = False
+Pest = False
+x_cord = 0
 
+GPIO.output(solenoid_pin, GPIO.LOW)
+class_names, net = cv.initialize()
+cap = cv.toggle_camera(None, SYS_WEBCAM)
+time.sleep(5)
 
 while True:
     if GPIO.event_detected(button_pin):
-        return_to_init_pos(motor1)
+        return_to_init_pos(motor1, delay, verbose_sweep)
     
-    start = initial_start_position(motor1, delay, verbose_sweep, start)
+    started = initial_start_position(motor1, servo1, delay, verbose_sweep, started)
     
-    #CV code to detect pest goes here?
-    x_cord_detected = 50
-    pest = int(input("pest detected? "))
-    
-    if pest == 1:
+    if cap:
+        #print("in cap")
+        center_coords = cv.process_frame_for_coords(cap, net, class_names)
+
+        if center_coords[0] != None:
+            print("Center Coords: (x,y) -> (" + str(center_coords[0]) + ", " + str(center_coords[1]) + ")")
+            x_cord = center_coords[0]
+            print(x_cord)
+            pest = True
+        else:
+            pest = False
+            print("no pest detetcted")
+       
+    '''
+    key = cv2.waitKey(1)
         
+    if key == 27:
+        break
+    elif key == 116:  # t -> Toggle the camera
+        cap = cv.toggle_camera(cap, SYS_WEBCAM)
+    
+    '''
+    
+    
+    if pest == True:
+        print("Pest Detected")
         while True:
             #get some cordinates from CV and calculate a degree to have pest in center view
-            
-            k = x_cord_detected * math.tan(alpha)
-            
-            if(x_cord_detected > center_x_frame):
-                angle_2_rotate = math.atan(k / a)
-                print("rotate to the right: ", angle_2_rotate)
-                motor1.rotate_stepper(angle_2_rotate, 'ccw', delay, verbose_track)
-                #time.sleep(.3)
-            elif(x_cord_detected < center_x_frame):
-                angle_2_rotate = math.atan(k / a)
-                print("rotate to the left:", angle_2_rotate)
-                motor1.rotate_stepper(angle_2_rotate, 'cw', delay, verbose_track)
-                #time.sleep(.3)
-            else:
-                print("already targeted")
-                                      
-            d = get_distance(1, False)
-            if d < 0:
-                while True:
-                    d = get_distance(1, False)
-                    if d < 0:
-                        continue
-                    else:
-                        break
-                
-            print("distance measured: ",d)
-            C = g * d
-            needed_angle = 0.5 * math.asin(C / v0_2)
+            time.sleep(1)
+            track_pest(motor1, delay, verbose_track, x_cord)
+            '''                       
+            needed_angle = servo_angle_needed(130)
             
             if(servo1.previous_angle == needed_angle):
                 if not solenoid_open:
-                    #open solenoid
+                    GPIO.output(solenoid_pin, GPIO.HIGH)
                     solenoid_open = True
-                time.sleep(.1)
+            
             else:
                 #servo1.set_angle(needed_angle)
                 if not solenoid_open:
-                    #open solenoid
+                    GPIO.output(solenoid_pin, GPIO.HIGH)
                     solenoid_open = True
-                time.sleep(.1)
-            
                 
-            #CV code to detect pest goes here?
+            '''
+            time.sleep(1.5)
+            count = 0
+            for i in range(0, frame_thresh):
+                if cap:
+                    #print("in cap")
+                    center_coords = cv.process_frame_for_coords(cap, net, class_names)
+                    count = count + 1
+                    if center_coords[0] != None:
+                        print("Center Coords: (x,y) -> (" + str(center_coords[0]) + ", " + str(center_coords[1]) + ")")
+                        x_cord = center_coords[0]
+                        print("x_cord: ", x_cord)
+                        print("count: ", count)
+                        pest = True
+                        break
+                    else:
+                        pest = False
+                        print("no pest detetcted")
+                print("count: ", count)
             
-            pest = int(input("pest detected? "))
-            if pest == 1:
+            if pest == True:
                 continue
+                print("pest still in frame")
             else:
-                #close solenoid
+                GPIO.output(solenoid_pin, GPIO.LOW)
+                print("pest not in frame anymore (presumably)")
                 solenoid_open = False
                 break
     
     cw = motor_sweep(motor1, delay, verbose_sweep, cw)
+
+if cap:
+        cap.release()
