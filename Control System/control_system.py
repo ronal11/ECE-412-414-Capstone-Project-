@@ -36,7 +36,7 @@ started = True
 cw = True
 solenoid_open = False
 Pest = False
-x_cord = 0
+
 
 GPIO.output(solenoid_pin, GPIO.LOW)
 class_names, net = cv.initialize()
