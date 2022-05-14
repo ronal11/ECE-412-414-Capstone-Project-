@@ -22,15 +22,15 @@ def cv_testing_coord_processing(cap: cv2.VideoCapture, net: cv2.dnn_Net, class_n
     while True:
         center_coords = cv.process_frame_for_coords(cap, net, class_names)
 
-        if center_coords:
+        if center_coords[0] is not None:
             print("Center Coords: (x,y) -> (" + str(center_coords[0]) + ", " + str(center_coords[1]) + ")")
 
         key = cv2.waitKey(1)
-        match key:
-            case 27:  # ESC -> Exit program
+        if key == 27:  # ESC -> Exit program
                 break
-            case 116:  # t -> Toggle the camera
+        elif key == 116:  # t -> Toggle the camera
                 cap = cv.toggle_camera(cap, SYS_WEBCAM)
+
     if cap:
         cap.release()
 
@@ -53,6 +53,8 @@ def cv_testing_loop_new(cap: cv2.VideoCapture, net: cv2.dnn_Net, class_names: li
             boxes, b_center_coords, confidences, class_ids = cv.post_processing(layer_outputs, f_width, f_height)
 
             cv.draw_bbox(frame, boxes, confidences, class_ids, class_names)
+
+            # frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB) # Uncomment this if output colors are in BGR
             cv2.imshow('Video', frame)
 
             if b_center_coords:
@@ -60,16 +62,14 @@ def cv_testing_loop_new(cap: cv2.VideoCapture, net: cv2.dnn_Net, class_names: li
                 print("Center Coords: (x,y) -> (" + str(x) + ", " + str(y) + ")")
 
         key = cv2.waitKey(1)
-        match key:
-            case 27 : # ESC -> Exit program
-                break
-            case 116: # t -> Toggle the camera
-                cap = cv.toggle_camera(cap, SYS_WEBCAM)
-                cv2.imshow('Video', np.full((f_height, f_width, 3), (0,0,0), np.uint8)) # Clears the img window
+        if key == 27:  # ESC -> Exit program
+            break
+        elif key == 116:  # t -> Toggle the camera
+            cap = cv.toggle_camera(cap, SYS_WEBCAM)
 
     if cap:
         cap.release()
-        cv2.destroyAllWindows()
+    cv2.destroyAllWindows()
 
 def cv_testing_loop_old(vid_src: Union[str, int], net: cv2.dnn_Net, class_names: list) -> None:
     """Main computer vision loop for continously reading and processing a webcam/video feed
@@ -99,5 +99,6 @@ def cv_testing_loop_old(vid_src: Union[str, int], net: cv2.dnn_Net, class_names:
         if key == 27:
             break
 
-    cap.release()
+    if cap:
+        cap.release()
     cv2.destroyAllWindows()

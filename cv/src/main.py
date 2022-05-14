@@ -1,17 +1,12 @@
 import cv
 import cv2
 import cv_test
+import time
 import numpy as np
-
-# Dataset file path
-COCO_PATH           = '../yolo/coco.names'
-CUSTOM_ClASSES_PATH = '../yolo/obj.names'
 
 # Some constant input device/source constants
 SYS_WEBCAM = 0
 OBS_WEBCAM = 1
-DEER1_MP4  = '../videos/deer1.mp4'
-DEER2_MP4  = '../videos/deer2.mp4'
 
 def main():
     """
@@ -22,6 +17,7 @@ def main():
 
     class_names, net = cv.initialize()
     cap = cv.toggle_camera(None, SYS_WEBCAM)
+    time.sleep(5) # Allows the camera to fully initialize on slower devices
 
     cv_test.cv_testing_loop_new(cap, net, class_names)
     # cv_test.cv_testing_coord_processing(cap, net, class_names)

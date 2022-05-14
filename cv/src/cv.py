@@ -78,7 +78,9 @@ def toggle_camera(cap: cv2.VideoCapture, vid_src: Union[str, int]) -> cv2.VideoC
         cap.release()
         return None
     else:
-        cap = cv2.VideoCapture(vid_src, cv2.CAP_DSHOW)
+        cap = cv2.VideoCapture(vid_src, cv2.CAP_ANY)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1920)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1080)
         return cap
 
 def get_frame(cap: cv2.VideoCapture) -> Tuple[np.ndarray, int, int]:
