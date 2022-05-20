@@ -205,7 +205,6 @@ def track_pest(motor, delay, verbose, x_cord_detected):
             
         print("rotate {0}: {1} deg: " .format(dir, angle_2_rotate/2))
         motor.rotate_stepper(angle_2_rotate, dir, delay, verbose) # rotate stepper CCW, translates to rotating platform to the right by angle_2_rotate/2 (2:1 ratio)
-        dir = 'cw'
         time.sleep(1)
     elif(x_cord_detected < 0):                         # if x-cord is < 0 move to platform to the left (big gear), this means moving stepper motor to the right(Small gear)
         dir = 'ccw'
@@ -215,16 +214,15 @@ def track_pest(motor, delay, verbose, x_cord_detected):
         print("calc is: ", calc)
         
         if calc < deg_range_n:                                 # if new position results in stepper motor going out of range (180 deg small gear == -90 deg big gear)
-             if angle_2_rotate > deg_blind:
+            print("angle required over {0}" .format(deg_range_n))
+            if angle_2_rotate > deg_blind:
                 temp = angle_2_rotate - deg_blind
                 angle_2_rotate  = deg_range_p - temp
                 print("changed directions to CW")
                 dir = 'cw'
-             else:
-                print("angle required over {0}" .format(deg_range_n))
+            else:
                 angle_2_rotate = deg_range_p + motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
             
         print("rotate {0}: {1} deg: " .format(dir, angle_2_rotate/2))
         motor.rotate_stepper(angle_2_rotate, dir, delay, verbose)  # rotate stepper CW, translates to rotating platform to the left by angle_2_rotate/2 (2:1 ratio)
-        dir = 'ccw'
         time.sleep(1)
