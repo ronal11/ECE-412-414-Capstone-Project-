@@ -14,6 +14,18 @@ alpha = camera_FOV / 2
 # constants used for calculating angle to track
 a = frame_width / 2
 tracking_thresh = 30    # 30 pixels translates to a 1.61 degree error in aim
+
+deg_range_p = 180
+deg_range_n = -180
+deg_blind = 10
+
+deg_per_step = 3.6
+last_step_cw = deg_range_p - deg_per_step
+last_step_ccw = deg_range_n + deg_per_step
+
+deg_limit_p = deg_range_p - 1
+deg_limit_n = deg_range_n + 1
+
 '''
 This function measures distance using ultrasonic sensor 
 
@@ -79,33 +91,33 @@ returns: current direction of sweeping motion (bool)
 def motor_sweep(motor, delay, verbose, cw):
     
     if cw:                                     # if stepper motor is currently rotating clockwise (platform is rotating ccw)
-        if motor.relative_pos > 176.4:         # used to detect when an increment of 3.6 will bring platform over allowed range
+        if motor.relative_pos > last_step_cw:         # used to detect when an increment of 3.6 will bring platform over allowed range
             print(motor.relative_pos)
-            degree = 180 - motor.relative_pos  # calulate needed angle to bring to extrenum 
+            degree = deg_range_p - motor.relative_pos  # calulate needed angle to bring to extrenum 
             print('greater than 176.4, degrees needed: ', degree)
             motor.rotate_stepper(degree, 'cw', delay, verbose)  # rotate to extrenum, in the case of the stepper (180 degrees clockwise)
             
         curr = motor.relative_pos       
         
-        if curr > 179:           # if current position is greater than 179
+        if curr > deg_limit_p:           # if current position is greater than 179
             cw = False           # start rotating stepper motor in ccw direction 
         else:
-            motor.rotate_stepper(3.6, 'cw', delay, verbose)   #else, rotate cw in 3.6 increments 
+            motor.rotate_stepper(deg_per_step, 'cw', delay, verbose)   #else, rotate cw in 3.6 increments 
         
     else:                                       # if stepper is rotating ccw 
-        if motor.relative_pos < -176.4:
+        if motor.relative_pos < last_step_ccw:
             print(motor.relative_pos)           # process same as above
-            degree = 180 - abs(motor.relative_pos)
+            degree = deg_range_p - abs(motor.relative_pos)
             print('less than -176.4' ,degree)
             motor.rotate_stepper(degree, 'ccw', delay, verbose)
             
         curr = motor.relative_pos
         
         
-        if curr < -179:
+        if curr < deg_limit_n:
             cw = True
         else:
-            motor.rotate_stepper(3.6, 'ccw', delay, verbose)
+            motor.rotate_stepper(deg_per_step, 'ccw', delay, verbose)
     return cw    
 '''
 This function sets servo and motor to an initial position, returns start variable as false, only runs at the start once
@@ -175,28 +187,44 @@ def track_pest(motor, delay, verbose, x_cord_detected):
         print("below tracking threshold")
         time.sleep(1)
     elif(x_cord_detected > 0):                         # if x-cord is > 0 move to platform to the right (big gear), this means moving stepper motor to the left(Small gear)
+        dir = 'cw'
         angle_2_rotate = 2* (math.degrees(math.atan(k / a))) # calculate angle (N.B. multiplied by two because of 2:1 gear ratio)
-        
-        calc = motor.relative_pos - angle_2_rotate           # calculate new position that will result 
-        print("calc is: ", calc)
-        
-        if calc < -180:                                # if new position results in stepper motor going out of range (-180 deg small gear == 90 deg big gear)
-            print("angle required over -180")
-            angle_2_rotate = 180 + motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
-            
-        print("rotate to the right: ", angle_2_rotate/2)
-        motor.rotate_stepper(angle_2_rotate, 'ccw', delay, verbose) # rotate stepper CCW, translates to rotating platform to the right by angle_2_rotate/2 (2:1 ratio)
-        time.sleep(1)
-    elif(x_cord_detected < 0):                         # if x-cord is < 0 move to platform to the left (big gear), this means moving stepper motor to the right(Small gear)
-        angle_2_rotate = 2*(math.degrees(math.atan(k / a)))  # calculate angle (N.B. multiplied by two because of 2:1 gear ratio)
         
         calc = motor.relative_pos + angle_2_rotate           # calculate new position that will result 
         print("calc is: ", calc)
         
-        if calc > 180:                                 # if new position results in stepper motor going out of range (180 deg small gear == -90 deg big gear)
-            print("angle required over 180")
-            angle_2_rotate = 180 - motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
+        if calc > deg_range_p:                                # if new position results in stepper motor going out of range (-180 deg small gear == 90 deg big gear)
+            print("angle required over {0}" .format(deg_range_p))
+            if angle_2_rotate > deg_blind:
+                temp = angle_2_rotate - deg_blind
+                angle_2_rotate  = deg_range_p - temp
+                print("changed directions to CCW")
+                dir = 'ccw'
+            else:
+                angle_2_rotate = deg_range_p - motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
             
-        print("rotate to the left:", angle_2_rotate/2)
-        motor.rotate_stepper(angle_2_rotate, 'cw', delay, verbose)  # rotate stepper CW, translates to rotating platform to the left by angle_2_rotate/2 (2:1 ratio)
+        print("rotate {0}: {1} deg: " .format(dir, angle_2_rotate/2))
+        motor.rotate_stepper(angle_2_rotate, dir, delay, verbose) # rotate stepper CCW, translates to rotating platform to the right by angle_2_rotate/2 (2:1 ratio)
+        dir = 'cw'
+        time.sleep(1)
+    elif(x_cord_detected < 0):                         # if x-cord is < 0 move to platform to the left (big gear), this means moving stepper motor to the right(Small gear)
+        dir = 'ccw'
+        angle_2_rotate = 2*(math.degrees(math.atan(k / a)))  # calculate angle (N.B. multiplied by two because of 2:1 gear ratio)
+        
+        calc = motor.relative_pos - angle_2_rotate           # calculate new position that will result 
+        print("calc is: ", calc)
+        
+        if calc < deg_range_n:                                 # if new position results in stepper motor going out of range (180 deg small gear == -90 deg big gear)
+             if angle_2_rotate > deg_blind:
+                temp = angle_2_rotate - deg_blind
+                angle_2_rotate  = deg_range_p - temp
+                print("changed directions to CW")
+                dir = 'cw'
+             else:
+                print("angle required over {0}" .format(deg_range_n))
+                angle_2_rotate = deg_range_p + motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
+            
+        print("rotate {0}: {1} deg: " .format(dir, angle_2_rotate/2))
+        motor.rotate_stepper(angle_2_rotate, dir, delay, verbose)  # rotate stepper CW, translates to rotating platform to the left by angle_2_rotate/2 (2:1 ratio)
+        dir = 'ccw'
         time.sleep(1)
