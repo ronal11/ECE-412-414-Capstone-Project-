@@ -12,6 +12,7 @@ body {
 .flex-container {
     display: flex;
     flex: 1;
+    flex-direction: column;
 }
 
 .header {
@@ -33,7 +34,7 @@ body {
 }
 
 .header__item + .header__item {
-    maring-left: 5px;
+    margin-left: 5px;
 }
 
 .header-logo {
@@ -51,4 +52,43 @@ body {
 .header-button {
     cursor: pointer;
     color: black;
+}
+
+.camera {
+    display: flex;
+    flex-direction: row;
+}
+
+.camera__section{
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 10px;
+}
+
+.camera__item {
+    color: white;
+}
+
+.camera-feed {
+    /*border: 10px solid #6D8D23;*/
+}
+
+.camera-controls-button {
+    color: #090909;
+    padding: 0.7em 1.7em;
+    font-size: 12px;
+    border-radius: 0.5em;
+    background: #6D8D23;
+    border: 1px solid black;
+    transition: all .3s;
+}
+
+.camera-controls-button:hover {
+    border: 1px solid #9ecc33;
+}
+
+.camera-controls-button:active {
+    box-shadow: 4px 4px 12px #9ecc33,
+                -4px -4px 12px #9ecc33;
 }

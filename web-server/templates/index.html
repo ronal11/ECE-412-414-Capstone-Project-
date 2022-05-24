@@ -3,8 +3,16 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="initial-scale=1.0; width=device-width">
+
     <title>Pest Detection Config</title>
     <link rel="stylesheet" href="../static/css/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js" integrity="sha512-q/dWJ3kcmjBLU4Qc47E4A9kTB4m3wuTY7vkFJDTZKjTs8jhyGQnaUrxa0Ytd0ssMZhbNua9hE+E7Qv1j+DyZwA==" crossorigin="anonymous"></script>
+    <script type="text/javascript" charset="utf-8">
+        var socket = io().connect();
+        socket.on('connect', function() {
+            socket.emit('my event', {data: 'I\'m connected!'});
+        });
+    </script>
 </head>
 <body>
     <div class="flex-container">
@@ -24,6 +32,29 @@
                 <div class="header__item header-button">Camera</div>
             </div>
         </div>
+
+        <div class="camera">
+            <div class="camera__section">
+                <div class="camera__item camera-feed">
+                    <img id="bg" src="{{ url_for('video_feed') }}">
+                </div>
+                <div class="camera__item camera-controls">
+                    <button class="camera__item camera-controls-button">Toggle Camera</button>
+                    <button class="camera__item camera-controls-button">Rotate Left</button>
+                    <button class="camera__item camera-controls-button">Rotate Right</button>
+                    <button class="camera__item camera-controls-button">Tilt Up</button>
+                    <button class="camera__item camera-controls-button">Tilt Down</button>
+                </div>
+            </div>
+            <div class="camera__section">
+                <div class="camera__item camera-info">
+                    <div class="camera__item camera-fps">Camera FPS:</div>
+                    <div class="camera__item camera-fps">Roate Angle:</div>
+                    <div class="camera__item camera-fps">Tilt Angle:</div>
+                </div>
+            </div>
+        </div>
+
     </div>
 </body>
 </html>
