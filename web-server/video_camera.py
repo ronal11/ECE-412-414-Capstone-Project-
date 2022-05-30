@@ -1,6 +1,5 @@
 from threading import Thread, Lock
-import cv2, time
-import gevent
+import cv2, time, eventlet
 
 gevent_active = True
 
@@ -26,7 +25,7 @@ class VideoCamera(object):
                 if self.capture.isOpened():
                     (self.status, self.frame) = self.capture.read()
             if gevent_active:
-                gevent.sleep(1/30)
+                eventlet.sleep(1/30)
             else:
                 time.sleep(1/30)
 
