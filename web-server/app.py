@@ -75,6 +75,7 @@ def run_system():
 
     while True:
         global user_online
+        pest = False
         if user_online is False:
             # if GPIO.event_detected(button_pin):
             #     return_to_init_pos(motor1, delay, verbose_sweep)
@@ -94,6 +95,7 @@ def run_system():
             if pest is True:
                 eventlet.sleep(1)
                 control_system.track_pest(control_system.get_x_cord())
+                control_system.solenoid_open()
                 '''                       
                 needed_angle = servo_angle_needed(130)
 
@@ -108,7 +110,7 @@ def run_system():
                         GPIO.output(solenoid_pin, GPIO.HIGH)
                         solenoid_open = True
                 '''
-                eventlet.sleep(1.5)
+                # eventlet.sleep(1.5)
                 count = 0
                 for i in range(0, frame_thresh):
                     frame = detector.get_frame()
@@ -130,7 +132,7 @@ def run_system():
                     print("pest still in frame")
                     continue
                 else:
-                    GPIO.output(solenoid_pin, GPIO.LOW)
+                    control_system.close_solenoid()
                     print("pest not in frame anymore (presumably)")
                     solenoid_open = False
                     break

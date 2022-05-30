@@ -8,14 +8,16 @@ class ControlSystem(object):
     def __init__(self, frame_width):
         # Rotation parameters
         self.x_cord        = 0
-        self.deg_range_p   = 180
-        self.deg_range_n   = -180
-        self.deg_blind     = 10
+        self.deg_range_p   = 350
+        self.deg_range_n   = -350
+        self.deg_blind     = 2 * 10
+        self.max_range     = 2 * self.deg_range_p
         self.deg_per_step  = 3.6
         self.last_step_cw  = self.deg_range_p - self.deg_per_step
         self.last_step_ccw = self.deg_range_n + self.deg_per_step
         self.deg_limit_p   = self.deg_range_p - 1
         self.deg_limit_n   = self.deg_range_n + 1
+        self.ini_servo_angle = 125
 
         # Frame parameters
         self.frame_width   = frame_width
@@ -33,6 +35,7 @@ class ControlSystem(object):
         self.servo_pin    = 7
         self.button_pin   = 37
         self.solenoid_pin = 33
+        self.irrig_pin    = 11
 
         # Other parameters
         self.delay = .009
@@ -56,10 +59,15 @@ class ControlSystem(object):
             Nothing
         """
         GPIO.setmode(GPIO.BOARD)
+
         GPIO.setup(solenoid_pin, GPIO.OUT)
+        GPIO.output(solenoid_pin, GPIO.LOW)
+
         GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
         GPIO.add_event_detect(button_pin, GPIO.FALLING)
-        GPIO.output(solenoid_pin, GPIO.LOW)
+
+        GPIO.setup(self.irrig_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+        GPIO.add_event_detect(self.irrig_pin, GPIO.FALLING)
 
     def initialize_motors(self):
         """Initializes all motor devices (stepper and servo)
@@ -101,6 +109,16 @@ class ControlSystem(object):
             x_cord: Current rotational x-coordinate
         """
         return self.x_cord
+
+    def open_solenoid(self):
+        if not self.solenoid_open:
+            GPIO.output(self.solenoid_pin, GPIO.HIGH)
+            self.solenoid_open = True
+
+    def close_solenoid(self):
+        if self.solenoid_open:
+            GPIO.output(self.solenoid_pin, GPIO.LOW)
+            self.solenoid_open = False
 
     def get_distance(self):
         """This function measures distance using ultrasonic sensor
@@ -209,53 +227,64 @@ class ControlSystem(object):
             Nothing
         """
 
-        x_cord_detected = x_cord_detected - self.center_frame  # calculate x cordinate, will produce a negative or pos, which corresponds to the left or right of center cord respectivley
-        print("x_cord_detected = ", x_cord_detected)
-        abs_x_cord = abs(x_cord_detected)  # get abs value of x cordinate, will be used to see if x cord is over threshold
+        x_cord = x_cord_detected - self.center_frame  # calculate x cordinate, will produce a negative or pos, which corresponds to the left or right of center cord respectivley
+        print("x_cord_DETECTED = ", x_cord)
+        abs_x_cord = abs(x_cord)  # get abs value of x cordinate, will be used to see if x cord is over threshold
 
         k = abs_x_cord * math.tan(math.radians(self.alpha))  # calculation for equation to track
 
         if abs_x_cord < self.tracking_thresh:  # if x-cord is less than threshold, don't move in hopes of preventing jittering in stepper motor
-            print("below tracking threshold")
+            print("BELOW tracking threshold")
             eventlet.sleep(1)
-        elif x_cord_detected > 0:  # if x-cord is > 0 move to platform to the right (big gear), this means moving stepper motor to the left(Small gear)
+        elif x_cord > 0:  # if x-cord is > 0 move to platform to the right (big gear), this means moving stepper motor to the left(Small gear)
+            dir = 'ccw'
+            angle_2_rotate = 2 * (math.degrees(math.atan(k / self.a)))  # calculate angle (N.B. multiplied by two because of 2:1 gear ratio)
+
+            calc = self.motor.relative_pos - angle_2_rotate  # calculate new position that will result
+            print("NEW position will be: ", calc)
+
+            if calc < self.deg_range_n:  # if new position results in stepper motor going out of range (-180 deg small gear == 90 deg big gear)
+                print("angle required UNDER {0}".format(self.deg_range_n))
+                thresh = abs(calc + self.deg_range_p)
+                if thresh >= self.deg_blind:
+                    temp = angle_2_rotate - self.deg_blind
+                    angle_2_rotate = self.max_range - temp
+                    print("CHANGED directions to CW")
+                    dir = 'cw'
+                else:
+                    if self. motor.relative_pos is not self.deg_range_n:
+                        print("Platform already in MAX range of {0}".format(self.deg_range_n))
+                        angle_2_rotate = 0
+                    else:
+                        angle_2_rotate = self.deg_range_p + self.motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
+                        print("rotate {0} deg JUST to bring to max range of -350".format(angle_2_rotate))
+
+            print("rotate platform TO THE RIGHT: {0} deg: ".format(angle_2_rotate / 2))
+            self.motor.rotate_stepper(angle_2_rotate, dir, self.delay, True)  # rotate stepper CCW, translates to rotating platform to the right by angle_2_rotate/2 (2:1 ratio)
+            eventlet.sleep(1)
+        elif x_cord < 0:  # if x-cord is < 0 move to platform to the left (big gear), this means moving stepper motor to the right(Small gear)
             dir = 'cw'
             angle_2_rotate = 2 * (math.degrees(math.atan(k / self.a)))  # calculate angle (N.B. multiplied by two because of 2:1 gear ratio)
 
             calc = self.motor.relative_pos + angle_2_rotate  # calculate new position that will result
-            print("calc is: ", calc)
+            print("NEW position will be: ", calc)
 
-            if calc > self.deg_range_p:  # if new position results in stepper motor going out of range (-180 deg small gear == 90 deg big gear)
-                print("angle required over {0}".format(self.deg_range_p))
-                if angle_2_rotate > self.deg_blind:
+            if calc > self.deg_range_p:  # if new position results in stepper motor going out of range (180 deg small gear == -90 deg big gear)
+                print("angle required OVER {0}".format(self.deg_range_p))
+                thresh = calc - self.deg_range_p
+                if thresh >= self.deg_blind:
                     temp = angle_2_rotate - self.deg_blind
-                    angle_2_rotate = self.deg_range_p - temp
-                    print("changed directions to CCW")
+                    angle_2_rotate = self.max_range - temp
+                    print("CHANGED directions to CCW")
                     dir = 'ccw'
                 else:
-                    angle_2_rotate = self.deg_range_p - self.motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
+                    if self.motor.relative_pos == self.deg_range_p:
+                        print("Platform already in MAX range of {0}".format(deg_range_p))
+                        angle_2_rotate = 0
+                    else:
+                        angle_2_rotate = self.deg_range_p - self.motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
+                        print("rotate {0} deg JUST to bring to max range of 350".format(angle_2_rotate))
 
-            print("rotate {0}: {1} deg: ".format(dir, angle_2_rotate / 2))
-            self.motor.rotate_stepper(angle_2_rotate, dir, self.delay, self.verbose)  # rotate stepper CCW, translates to rotating platform to the right by angle_2_rotate/2 (2:1 ratio)
-            eventlet.sleep(1)
-        elif x_cord_detected < 0:  # if x-cord is < 0 move to platform to the left (big gear), this means moving stepper motor to the right(Small gear)
-            dir = 'ccw'
-            angle_2_rotate = 2 * (
-                math.degrees(math.atan(k / a)))  # calculate angle (N.B. multiplied by two because of 2:1 gear ratio)
-
-            calc = self.motor.relative_pos - angle_2_rotate  # calculate new position that will result
-            print("calc is: ", calc)
-
-            if calc < self.deg_range_n:  # if new position results in stepper motor going out of range (180 deg small gear == -90 deg big gear)
-                print("angle required over {0}".format(self.deg_range_n))
-                if angle_2_rotate > self.deg_blind:
-                    temp = angle_2_rotate - self.deg_blind
-                    angle_2_rotate = self.deg_range_p - temp
-                    print("changed directions to CW")
-                    dir = 'cw'
-                else:
-                    angle_2_rotate = self.deg_range_p + self.motor.relative_pos  # calculate new angle to bring stepper motor to max range in hopes to still deter pest
-
-            print("rotate {0}: {1} deg: ".format(dir, angle_2_rotate / 2))
-            self.motor.rotate_stepper(angle_2_rotate, dir, self.delay, self.verbose)  # rotate stepper CW, translates to rotating platform to the left by angle_2_rotate/2 (2:1 ratio)
+            print("rotate TO THE LEFT: {0} deg: ".format(angle_2_rotate / 2))
+            self.motor.rotate_stepper(angle_2_rotate, dir, self.delay, True)  # rotate stepper CW, translates to rotating platform to the left by angle_2_rotate/2 (2:1 ratio)
             eventlet.sleep(1)
