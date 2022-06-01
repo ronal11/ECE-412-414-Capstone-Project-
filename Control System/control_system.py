@@ -21,12 +21,13 @@ frame_thresh = 5
 step_pin = 3                          # pin assignments 
 direc_pin = 5
 servo_pin = 7
-button_pin = 37
-solenoid_pin = 33
+button_pin = 35
+solenoid_pin = 37
 irrig_pin = 11
 delay = .003 #.009                   # delay to control motor speed
 verbose_sweep = False                 # variables for debugging 
 verbose_track = True
+sleep_pin = 33
 
 
 #intialize stepper and servo  motor
@@ -35,21 +36,24 @@ servo1 = ser.servo(servo_pin, 50, "servo1")
 # set up GPIOs
 GPIO.setmode(GPIO.BOARD)
 GPIO.setup(solenoid_pin, GPIO.OUT)
-
+GPIO.setup(sleep_pin, GPIO.OUT)
 GPIO.setup(button_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
 GPIO.add_event_detect(button_pin, GPIO.FALLING)
 
 GPIO.setup(irrig_pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-GPIO.add_event_detect(irrig_pin, GPIO.FALLING)
+GPIO.add_event_detect(irrig_pin, GPIO.FALLING, bouncetime=5)
 # intialize variables
 started = True                 
 cw = True
 solenoid_open = False
 Pest = False
 x_cord = 0
-irrigation = True
-
+irrigation = False
+GPIO.output(sleep_pin, GPIO.HIGH)
+time.sleep(.2)
 GPIO.output(solenoid_pin, GPIO.LOW)
+GPIO.output(solenoid_pin, GPIO.HIGH)
+GPIO.output(sleep_pin, GPIO.LOW)
 # start CV
 class_names, net = cv.initialize()
 cap = cv.toggle_camera(None, SYS_WEBCAM)
@@ -57,8 +61,8 @@ time.sleep(5)
 
 while True:
     if GPIO.event_detected(button_pin):                      # if falling edge is detected from button
-        return_to_init_pos(motor1, delay, verbose_sweep)     # return to 0 position
-    
+       return_to_init_pos(motor1, delay, verbose_sweep)     # return to 0 position
+    '''
     if GPIO.event_detected(irrig_pin):
         if irrigation:
             irrigation = False
@@ -70,7 +74,7 @@ while True:
             print("irrigation mode started")
             GPIO.output(solenoid_pin, GPIO.HIGH)
             solenoid_open = True
-    
+    '''
     started = initial_start_position(motor1, servo1, delay, verbose_sweep, started) # turn all the way CW
     
     if not irrigation:
@@ -106,8 +110,10 @@ while True:
                 track_pest(motor1, delay, verbose_track, x_cord)
             
                 if not solenoid_open:       # if solenoid isn't already opened, then we open it
+                    GPIO.output(sleep_pin, GPIO.LOW)
                     GPIO.output(solenoid_pin, GPIO.HIGH)
                     solenoid_open = True
+                    GPIO.output(sleep_pin, GPIO.HIGH)
                 '''                       
                 needed_angle = servo_angle_needed(125)             #code for servo 
             
@@ -150,10 +156,12 @@ while True:
                     print("pest still in frame")
                     continue
                 
-                else:                                      # otherwise exit out of loop and continue sweeping 
+                else:                                      # otherwise exit out of loop and continue sweeping
+                    GPIO.output(sleep_pin, GPIO.LOW)
                     GPIO.output(solenoid_pin, GPIO.LOW)    # close solenoid
                     print("pest not in frame anymore (presumably)")
                     solenoid_open = False
+                    GPIO.output(sleep_pin, GPIO.HIGH)
                     break                         
     
     cw = motor_sweep(motor1, delay, verbose_sweep, cw) # this is the normal sweeping/irrigation motion while no pest is detected 
